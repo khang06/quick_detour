@@ -82,9 +82,9 @@ pub fn make_hook(input: TokenStream) -> TokenStream {
             // this hacky match statement is required to get the compiler to actually be able to assume types
             match ({
                 #[allow(non_standard_style)]
-                fn __type_funnel<__F, __R>(f: __F) -> __F
+                fn __type_funnel<__F>(f: __F) -> __F
                 where
-                    __F: ::core::ops::FnOnce(&::detour::StaticDetour<#fn_ty>, #(#detour_arg_types ,)*) -> __R
+                    __F: ::core::ops::FnOnce(&::detour::StaticDetour<#fn_ty>, #(#detour_arg_types ,)*) #detour_ret
                 {
                     f
                 }
