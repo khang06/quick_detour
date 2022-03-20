@@ -27,13 +27,13 @@ pub unsafe fn install_hooks() -> Result<(), Box<dyn std::error::Error>> {
     make_hook!(
         std::mem::transmute(get_api("user32.dll", "SetWindowTextA")),
         unsafe extern "system" fn(HWND, *const u8) -> BOOL,
-        |hwnd, text| -> BOOL {
+        |hook, hwnd, text| -> BOOL {
             if !text.is_null() && let Ok(cstr) = CStr::from_ptr(text as _).to_str() {
-                let mut new_str = cstr.to_string() + " (hooked!)";
+                let new_str = cstr.to_string() + " (hooked!)";
                 let new_cstr = CString::new(new_str).unwrap();
-                _hook.call(hwnd, new_cstr.as_ptr() as _)
+                hook.call(hwnd, new_cstr.as_ptr() as _)
             } else {
-                _hook.call(hwnd, text)
+                hook.call(hwnd, text)
             }
         }
     );
