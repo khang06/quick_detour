@@ -68,33 +68,40 @@ pub fn make_hook(input: TokenStream) -> TokenStream {
         );
 
         let expanded = quote_spanned!(Span::mixed_site() => {
-            #[allow(non_standard_style)]
-            static __hook: ::detour::StaticDetour<#fn_ty> = {
-                #[inline(never)]
-                #[allow(unused_unsafe)]
-
-                #detour_unsafe #detour_abi fn __ffi_detour(#detour_args) #detour_ret {
-                    #[allow(unused_unsafe)]
-                    (__hook.__detour())(#detour_ffi_args)
-                }
-                ::detour::StaticDetour::__new(__ffi_detour)
-            };
-            // this hacky match statement is required to get the compiler to actually be able to assume types
-            match ({
+            (|| {
                 #[allow(non_standard_style)]
-                fn __type_funnel<__F>(f: __F) -> __F
-                where
-                    __F: ::core::ops::FnOnce(&::detour::StaticDetour<#fn_ty>, #(#detour_arg_types ,)*) #detour_ret
-                {
-                    f
+                static mut __original: Option<#fn_ty> = None;
+
+                #[allow(non_standard_style)]
+                #detour_unsafe #detour_abi fn __ffi_detour(#detour_args) #detour_ret {
+                    // this hacky statement is required to get the compiler to actually be able to assume types
+                    let custom = ({
+                        #[allow(non_standard_style)]
+                        fn __type_funnel<__F>(f: __F) -> __F
+                        where
+                            __F: ::core::ops::FnOnce(#fn_ty, #(#detour_arg_types ,)*) #detour_ret
+                        {
+                            f
+                        }
+
+                        __type_funnel
+                    })(#custom);
+
+                    #[allow(unused_unsafe)]
+                    custom(__original.unwrap(), #detour_ffi_args)
                 }
 
-                __type_funnel
-            })(#custom) {
-                custom => __hook.initialize(#target, move |#detour_args| {
-                    custom(&__hook, #detour_ffi_args)
-                })?.enable()?,
-            }
+                match ::minhook_sys::MH_CreateHook(#target, __ffi_detour as _, &mut __original as *mut _ as _) {
+                    ::minhook_sys::MH_OK => (),
+                    x => return Err(x)
+                }
+                match ::minhook_sys::MH_EnableHook(#target) {
+                    ::minhook_sys::MH_OK => (),
+                    x => return Err(x)
+                }
+
+                Ok(())
+            })()
         });
 
         expanded.into()
